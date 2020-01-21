@@ -77,10 +77,8 @@ public class AionContractDetailsTest {
         byte[] key_2 = ByteUtil.hexStringToBytes("222222");
         byte[] val_2 = ByteUtil.hexStringToBytes("bbbbbb");
 
-        AionContractDetailsImpl contractDetails =
-                new AionContractDetailsImpl(
-                        1000000 // CfgAion.inst().getDb().getDetailsInMemoryStorageLimit()
-                        );
+        AionContractDetailsImpl contractDetails = new AionContractDetailsImpl();
+        contractDetails.detailsInMemoryStorageLimit = 1000000;
         contractDetails.setCode(code);
         contractDetails.setVmType(InternalVmType.FVM);
         contractDetails.put(
@@ -268,8 +266,8 @@ public class AionContractDetailsTest {
         AionRepositoryImpl repository = AionRepositoryImpl.createForTesting(repoConfig);
         ByteArrayKeyValueDatabase externalStorage = repository.getDetailsDatabase();
 
-        AionContractDetailsImpl original = new AionContractDetailsImpl(1000000);
-
+        AionContractDetailsImpl original = new AionContractDetailsImpl();
+        original.detailsInMemoryStorageLimit = 1000000;
         original.setExternalStorageDataSource(externalStorage);
         original.setAddress(address);
         original.setCode(code);
@@ -316,7 +314,8 @@ public class AionContractDetailsTest {
         Map<DataWord, DataWord> elements = new HashMap<>();
 
         int memstoragelimit = 512;
-        AionContractDetailsImpl original = new AionContractDetailsImpl(memstoragelimit);
+        AionContractDetailsImpl original = new AionContractDetailsImpl();
+        original.detailsInMemoryStorageLimit = memstoragelimit;
 
         // getting storage specific properties
         Properties sharedProps;
@@ -356,7 +355,8 @@ public class AionContractDetailsTest {
 
         byte[] rlp = original.getEncoded();
 
-        AionContractDetailsImpl deserialized = new AionContractDetailsImpl(memstoragelimit);
+        AionContractDetailsImpl deserialized = new AionContractDetailsImpl();
+        deserialized.detailsInMemoryStorageLimit = memstoragelimit;
         deserialized.setDataSource(jpd);
         deserialized.decode(rlp);
 
@@ -386,7 +386,8 @@ public class AionContractDetailsTest {
         AionRepositoryImpl repository = AionRepositoryImpl.createForTesting(repoConfig);
         ByteArrayKeyValueDatabase externalStorage = repository.getDetailsDatabase();
 
-        AionContractDetailsImpl original = new AionContractDetailsImpl(1000000);
+        AionContractDetailsImpl original = new AionContractDetailsImpl();
+        original.detailsInMemoryStorageLimit = 1000000;
         original.setExternalStorageDataSource(externalStorage);
         original.setAddress(address);
         original.setCode(code);
@@ -471,7 +472,8 @@ public class AionContractDetailsTest {
         AionRepositoryImpl repository = AionRepositoryImpl.createForTesting(repoConfig);
         ByteArrayKeyValueDatabase externalStorage = repository.getDetailsDatabase();
 
-        AionContractDetailsImpl details = new AionContractDetailsImpl(1000000);
+        AionContractDetailsImpl details = new AionContractDetailsImpl();
+        details.detailsInMemoryStorageLimit = 1000000;
         details.setExternalStorageDataSource(externalStorage);
         details.setAddress(address);
         details.setCode(code);
