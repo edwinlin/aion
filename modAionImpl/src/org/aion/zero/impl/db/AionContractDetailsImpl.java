@@ -58,7 +58,7 @@ public class AionContractDetailsImpl implements ContractDetails {
 
     private SecureTrie storageTrie = new SecureTrie(null);
 
-    public boolean externalStorage;
+    private boolean externalStorage;
 
     private byte[] objectGraphHash = EMPTY_DATA_HASH;
     private byte[] concatenatedStorageHash = EMPTY_DATA_HASH;
@@ -93,6 +93,11 @@ public class AionContractDetailsImpl implements ContractDetails {
         }
 
         decode(code);
+    }
+
+    @VisibleForTesting
+    public boolean isExternalStorage() {
+        return externalStorage;
     }
 
     @Override
