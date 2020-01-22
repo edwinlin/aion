@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import org.aion.db.impl.ByteArrayKeyValueDatabase;
+import org.aion.db.impl.ByteArrayKeyValueStore;
 import org.aion.db.impl.DBVendor;
 import org.aion.db.impl.DatabaseFactory;
 import org.aion.db.store.JournalPruneDataSource;
@@ -34,8 +35,7 @@ import org.slf4j.Logger;
 public class AionContractDetailsTest {
     private static final Logger LOG = AionLoggerFactory.getLogger(LogEnum.DB.name());
 
-    private static final int IN_MEMORY_STORAGE_LIMIT =
-            1000000; // CfgAion.inst().getDb().getDetailsInMemoryStorageLimit();
+    private static final int IN_MEMORY_STORAGE_LIMIT = 1_000_000;
 
     protected RepositoryConfig repoConfig =
             new RepositoryConfig() {
@@ -56,15 +56,6 @@ public class AionContractDetailsTest {
                     return props;
                 }
             };
-
-    private static AionContractDetailsImpl deserialize(
-            byte[] rlp, ByteArrayKeyValueDatabase externalStorage) {
-        AionContractDetailsImpl result = new AionContractDetailsImpl();
-        result.setExternalStorageDataSource(externalStorage);
-        result.decode(rlp);
-
-        return result;
-    }
 
     @Test
     public void test_1() throws Exception {
@@ -264,15 +255,15 @@ public class AionContractDetailsTest {
         Map<DataWord, DataWord> elements = new HashMap<>();
 
         AionRepositoryImpl repository = AionRepositoryImpl.createForTesting(repoConfig);
-        ByteArrayKeyValueDatabase externalStorage = repository.getDetailsDatabase();
+        ByteArrayKeyValueStore externalStorage = repository.detailsDS.getStorageDSPrune();
+        ByteArrayKeyValueDatabase graphDatabase = repository.graphDatabase;
 
-        AionContractDetailsImpl original = new AionContractDetailsImpl();
-        original.detailsInMemoryStorageLimit = 1000000;
-        original.setExternalStorageDataSource(externalStorage);
+        AionContractDetailsImpl original = new AionContractDetailsImpl(externalStorage, graphDatabase);
+        original.detailsInMemoryStorageLimit = IN_MEMORY_STORAGE_LIMIT;
         original.setAddress(address);
+        original.initializeExternalStorageTrieForTest();
         original.setCode(code);
         original.setVmType(InternalVmType.FVM);
-        original.externalStorage = true;
 
         for (int i = 0; i < IN_MEMORY_STORAGE_LIMIT / 64 + 10; i++) {
             DataWord key = new DataWord(RandomUtils.nextBytes(16));
@@ -286,8 +277,7 @@ public class AionContractDetailsTest {
 
         byte[] rlp = original.getEncoded();
 
-        AionContractDetailsImpl deserialized = new AionContractDetailsImpl();
-        deserialized.setExternalStorageDataSource(externalStorage);
+        AionContractDetailsImpl deserialized = new AionContractDetailsImpl(externalStorage, graphDatabase);
         deserialized.decode(rlp);
 
         assertEquals(deserialized.externalStorage, true);
@@ -382,11 +372,11 @@ public class AionContractDetailsTest {
         Map<DataWord, DataWord> elements = new HashMap<>();
 
         AionRepositoryImpl repository = AionRepositoryImpl.createForTesting(repoConfig);
-        ByteArrayKeyValueDatabase externalStorage = repository.getDetailsDatabase();
+        ByteArrayKeyValueStore externalStorage = repository.detailsDS.getStorageDSPrune();
+        ByteArrayKeyValueDatabase graphDatabase = repository.graphDatabase;
 
-        AionContractDetailsImpl original = new AionContractDetailsImpl();
-        original.detailsInMemoryStorageLimit = 1000000;
-        original.setExternalStorageDataSource(externalStorage);
+        AionContractDetailsImpl original = new AionContractDetailsImpl(externalStorage, graphDatabase);
+        original.detailsInMemoryStorageLimit = IN_MEMORY_STORAGE_LIMIT;
         original.setAddress(address);
         original.setCode(code);
         original.setVmType(InternalVmType.FVM);
@@ -399,10 +389,14 @@ public class AionContractDetailsTest {
             original.put(key.toWrapper(), wrapValueForPut(value));
         }
 
+        /* NOTE: This operation does not actually transition the storage to the external database.
+           The transition occurs only during decoding. */
         original.syncStorage();
-        assertTrue(!externalStorage.isEmpty());
+        assertTrue(externalStorage.isEmpty());
 
-        AionContractDetailsImpl deserialized = deserialize(original.getEncoded(), externalStorage);
+        AionContractDetailsImpl deserialized = new AionContractDetailsImpl(externalStorage, graphDatabase);
+        deserialized.decode(original.getEncoded());
+        assertTrue(deserialized.externalStorage);
 
         // adds keys for in-memory storage limit overflow
         for (int i = 0; i < 10; i++) {
@@ -417,12 +411,13 @@ public class AionContractDetailsTest {
         deserialized.syncStorage();
         assertTrue(!externalStorage.isEmpty());
 
-        deserialized = deserialize(deserialized.getEncoded(), externalStorage);
+        AionContractDetailsImpl deserialized2 = new AionContractDetailsImpl(externalStorage, graphDatabase);
+        deserialized2.decode(deserialized.getEncoded());
 
         for (DataWord key : elements.keySet()) {
             assertEquals(
                     elements.get(key).toWrapper(),
-                    wrapValueFromGet(deserialized.get(key.toWrapper())));
+                    wrapValueFromGet(deserialized2.get(key.toWrapper())));
         }
     }
 
@@ -468,11 +463,11 @@ public class AionContractDetailsTest {
         byte[] code = RandomUtils.nextBytes(512);
 
         AionRepositoryImpl repository = AionRepositoryImpl.createForTesting(repoConfig);
-        ByteArrayKeyValueDatabase externalStorage = repository.getDetailsDatabase();
+        ByteArrayKeyValueStore externalStorage = repository.detailsDS.getStorageDSPrune();
+        ByteArrayKeyValueDatabase graphDatabase = repository.graphDatabase;
 
-        AionContractDetailsImpl details = new AionContractDetailsImpl();
+        AionContractDetailsImpl details = new AionContractDetailsImpl(externalStorage, graphDatabase);
         details.detailsInMemoryStorageLimit = 1000000;
-        details.setExternalStorageDataSource(externalStorage);
         details.setAddress(address);
         details.setCode(code);
         details.setVmType(InternalVmType.FVM);
