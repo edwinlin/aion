@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.Optional;
 import org.aion.db.impl.ByteArrayKeyValueDatabase;
 import org.aion.db.store.JournalPruneDataSource;
+import org.aion.mcf.db.ContractDetails;
 import org.aion.mcf.db.InternalVmType;
 import org.aion.rlp.RLP;
 import org.aion.rlp.RLPElement;
@@ -43,7 +44,7 @@ public class DetailsDataStore {
      * @param storageRoot the requested storage root
      * @return a snapshot of the contract details with the requested root
      */
-    public synchronized AionContractDetailsImpl getSnapshot(InternalVmType vm, byte[] key, byte[] storageRoot) {
+    public synchronized ContractDetails getSnapshot(InternalVmType vm, byte[] key, byte[] storageRoot) {
         Optional<byte[]> rawDetails = detailsSrc.get(key);
 
         if (rawDetails.isPresent()) {
