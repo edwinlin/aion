@@ -36,7 +36,7 @@ public class AionContractDetailsImpl implements ContractDetails {
 
     /** Indicates the maximum storage size before shifting to the storage database. */
     @VisibleForTesting
-    static int detailsInMemoryStorageLimit = 64 * 1024;
+    static int detailsInMemoryStorageLimit = 0; // force a transition to the storage database
 
     private Map<ByteArrayWrapper, byte[]> codes = new HashMap<>();
     // classes extending this rely on this value starting off as null
