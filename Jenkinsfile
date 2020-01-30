@@ -23,6 +23,8 @@ pipeline {
 	'''.stripIndent()).trim()
     }
 
+    triggers { cron('H 19 * * *') }
+
     stages {
         stage('Build') {
             steps {
@@ -95,6 +97,41 @@ pipeline {
                     dir('FunctionalTests') { 
                         sh('tar -C Tests -xjf Tests/oan.tar.bz2')
                         sh('./gradlew :Tests:test -i -PtestNodes=java')
+                    }
+                }
+            }
+        }
+
+        stage('Testnet Sync test') {
+	    when { 
+		triggeredBy 'TimerTrigger' 
+	    }
+
+	    steps {
+                timeout(time: 4, unit: 'HOURS') {
+                    dir('pack') {
+                        sh('tar xvf oan.tar.bz2')
+                        echo "Start amity sync test..."
+                        sh('./oan/aion.sh -n amity dev fs')
+                        echo "finished amity sync test..."
+                        sh('rm -rf ./oan/amity/*')
+		    }  
+                }
+            }
+	}
+
+        stage('Mainnet Sync test') {
+            when {
+                triggeredBy 'TimerTrigger'
+            }
+
+            steps {
+                timeout(time: 4, unit: 'HOURS') {
+                    dir('pack') {
+                        echo "Start mainnet sync test..."
+                        sh('./oan/aion.sh dev fs')
+                        echo "finished mainnet sync test..."
+                        sh('rm -rf ./oan')
                     }
                 }
             }
