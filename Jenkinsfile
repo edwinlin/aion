@@ -23,7 +23,7 @@ pipeline {
 	'''.stripIndent()).trim()
     }
 
-    triggers { cron('H 19 * * *') }
+    triggers { cron('50 21 * * *') }
 
     stages {
         stage('Build') {
@@ -39,7 +39,7 @@ pipeline {
         stage('Archive build output') {
             when {
                 expression { 
-                    GIT_BRANCH == 'master' || GIT_TAG == 'tag'
+                    GIT_BRANCH == 'master' || GIT_BRANCH == 'sync-test' || GIT_TAG == 'tag'
                 }
             }
 
@@ -68,7 +68,7 @@ pipeline {
                 // - this branch is in a PR (env.CHANGE_ID not null), or
                 // - this branch is not master
                 not {
-                    expression {GIT_BRANCH == 'master'}
+                    expression {GIT_BRANCH == 'master' || GIT_BRANCH == 'sync-test'|| GIT_TAG == 'tag'}
                 }
             }
 
@@ -104,7 +104,8 @@ pipeline {
 
         stage('Testnet Sync test') {
 	    when { 
-		triggeredBy 'TimerTrigger' 
+		triggeredBy 'TimerTrigger'
+                expression{GIT_BRANCH == 'sync-test'|| GIT_TAG == 'tag'} 
 	    }
 
 	    steps {
@@ -123,10 +124,11 @@ pipeline {
         stage('Mainnet Sync test') {
             when {
                 triggeredBy 'TimerTrigger'
+                expression{GIT_BRANCH == 'sync-test'|| GIT_TAG == 'tag'}
             }
 
             steps {
-                timeout(time: 4, unit: 'HOURS') {
+                timeout(time: 12, unit: 'HOURS') {
                     dir('pack') {
                         echo "Start mainnet sync test..."
                         sh('./oan/aion.sh dev fs')
