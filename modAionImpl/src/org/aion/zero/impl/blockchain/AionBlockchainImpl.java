@@ -1221,7 +1221,7 @@ public class AionBlockchainImpl implements IAionBlockchain {
             return null;
         }
         
-        BlockHeader parentMiningBlock = null;
+        BlockHeader parentMiningBlock;
         BlockHeader parentMiningBlocksParent = null;
         byte[] newDiff;
         IDifficultyCalculator diffCalculator;
@@ -1233,8 +1233,10 @@ public class AionBlockchainImpl implements IAionBlockchain {
                 LOG.warn("Tried to create 2 PoW blocks in a row");
                 return null;
             } else {
-                parentMiningBlock = getParent(parentHdr).getHeader();
-                parentMiningBlocksParent = getParent(parentMiningBlock).getHeader();
+                Block[] blockFamily = getTwoGenParents(parentHdr);
+
+                parentMiningBlock = blockFamily[0].getHeader();
+                parentMiningBlocksParent = blockFamily[1].getHeader();
                 diffCalculator = chainConfiguration.getUnityDifficultyCalculator();
             }
         } else {
@@ -1289,8 +1291,10 @@ public class AionBlockchainImpl implements IAionBlockchain {
                 parentSeed = GENESIS_SEED;
                 newDiff = calculateFirstPoSDifficultyAtBlock(parent);
             } else {
-                BlockHeader parentStakingBlock = getParent(parentHdr).getHeader();
-                BlockHeader parentStakingBlocksParent = getParent(parentStakingBlock).getHeader();
+                Block[] blockFamily = getTwoGenParents(parentHdr);
+
+                BlockHeader parentStakingBlock = blockFamily[0].getHeader();
+                BlockHeader parentStakingBlocksParent = blockFamily[1].getHeader();
                 parentSeed = ((StakingBlockHeader) parentStakingBlock).getSeed();
                 newDiff = chainConfiguration.getUnityDifficultyCalculator().calculateDifficulty(parentStakingBlock, parentStakingBlocksParent);
             }
@@ -1589,6 +1593,14 @@ public class AionBlockchainImpl implements IAionBlockchain {
         return getBlockStore().getBlockByHashWithInfo(header.getParentHash());
     }
 
+    private Block[] getTwoGenParents(BlockHeader header) {
+        return getBlockStore().getTwoGenParentsByHashWithInfo(header.getParentHash());
+    }
+
+    private Block[] getThreeGenParents(BlockHeader header) {
+        return getBlockStore().getThreeGenParentsByHashWithInfo(header.getParentHash());
+    }
+
     public boolean isValid(BlockHeader header) {
         /*
          * The block header should already be validated at this point by P2P or mining,
@@ -1597,29 +1609,27 @@ public class AionBlockchainImpl implements IAionBlockchain {
         if (!this.headerValidator.validate(header, LOG)) {
             return false;
         }
+        /*
+         * threeGenParents[0] = parentBlock, threeGenParents[1] = grandParent, threeGenParents[2] greatGrandParent.
+         * if threeGenParents is not equal to null, the threeGenParents[0] must have block data.
+         */
+        Block[] threeGenParents = getThreeGenParents(header);
 
-        Block parent = getParent(header);
-        if (parent == null) {
+        if (threeGenParents == null) {
             return false;
         }
 
-        Block grandParent = getParent(parent.getHeader());
         if (header.getSealType() == BlockSealType.SEAL_POW_BLOCK) {
             if (forkUtility.isUnityForkActive(header.getNumber())) {
-                if (grandParent == null) {
+                if (threeGenParents[1] == null || threeGenParents[2] == null) {
                     return false;
                 }
 
-                Block greatGrandParent = getParent(grandParent.getHeader());
-                if (greatGrandParent == null) {
-                    return false;
-                }
-
-                return unityParentBlockHeaderValidator.validate(header, parent.getHeader(), LOG, null) &&
-                        unityGreatGrandParentBlockHeaderValidator.validate(grandParent.getHeader(), greatGrandParent.getHeader(), header, LOG);
+                return unityParentBlockHeaderValidator.validate(header, threeGenParents[0].getHeader(), LOG, null) &&
+                        unityGreatGrandParentBlockHeaderValidator.validate(threeGenParents[1].getHeader(), threeGenParents[2].getHeader(), header, LOG);
             } else {
-                return preUnityParentBlockHeaderValidator.validate(header, parent.getHeader(), LOG, null) &&
-                        preUnityGrandParentBlockHeaderValidator.validate(parent.getHeader(), grandParent == null ? null : grandParent.getHeader(), header, LOG);
+                return preUnityParentBlockHeaderValidator.validate(header, threeGenParents[0].getHeader(), LOG, null) &&
+                        preUnityGrandParentBlockHeaderValidator.validate(threeGenParents[0].getHeader(), threeGenParents[1] == null ? null : threeGenParents[1].getHeader(), header, LOG);
             }
         } else  if (header.getSealType() == BlockSealType.SEAL_POS_BLOCK) {
             if (!forkUtility.isUnityForkActive(header.getNumber())) {
@@ -1627,32 +1637,30 @@ public class AionBlockchainImpl implements IAionBlockchain {
                 return false;
             }
 
-            if (grandParent == null) {
+            if (threeGenParents[1] == null) {
                 LOG.warn("Staking block {} cannot find its grandparent", header.getNumber());
                 return false;
             }
 
-            Block greatGrandParent = getParent(grandParent.getHeader());
-            
-            if (forkUtility.isUnityForkBlock(parent.getNumber())) {
-                BigInteger expectedDiff = calculateFirstPoSDifficultyAtBlock(parent);
+            if (forkUtility.isUnityForkBlock(threeGenParents[0].getNumber())) {
+                BigInteger expectedDiff = calculateFirstPoSDifficultyAtBlock(threeGenParents[0]);
                 if (!expectedDiff.equals(header.getDifficultyBI())) {
                     return false;
                 }
-                grandParent = new GenesisStakingBlock(expectedDiff);
+                threeGenParents[1] = new GenesisStakingBlock(expectedDiff);
             }
 
             BigInteger stake = null;
 
             try {
-                stake = getStakingContractHelper().getEffectiveStake(new AionAddress(AddressSpecs.computeA0Address(((StakingBlockHeader) header).getSigningPublicKey())), ((StakingBlockHeader) header).getCoinbase(), parent);
+                stake = getStakingContractHelper().getEffectiveStake(new AionAddress(AddressSpecs.computeA0Address(((StakingBlockHeader) header).getSigningPublicKey())), ((StakingBlockHeader) header).getCoinbase(), threeGenParents[0]);
             } catch (Exception e) {
                 LOG.error("Shutdown due to a fatal error encountered while getting the effective stake.", e);
                 System.exit(SystemExitCodes.FATAL_VM_ERROR);
             }
 
-            return unityParentBlockHeaderValidator.validate(header, parent.getHeader(), LOG, stake) && 
-                    unityGreatGrandParentBlockHeaderValidator.validate(grandParent.getHeader(), greatGrandParent.getHeader(), header, LOG);
+            return unityParentBlockHeaderValidator.validate(header, threeGenParents[0].getHeader(), LOG, stake) &&
+                    unityGreatGrandParentBlockHeaderValidator.validate(threeGenParents[1].getHeader(), threeGenParents[2].getHeader(), header, LOG);
 
         } else {
             LOG.debug("Invalid header seal type!");

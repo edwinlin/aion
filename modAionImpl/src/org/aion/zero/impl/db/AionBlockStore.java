@@ -1384,6 +1384,131 @@ public class AionBlockStore {
         }
     }
 
+    /**
+     *  Retrieve three generation blocks with unity protocol info with one lock.
+     * @param hash given hash of the block
+     * @return the 3 generation block data have matched hash with unity protocol info. Block[0] is the parent block,
+     * Block[1] is the grandParent block, and Block[2] is the greatParentBlock. The return might only contain the parent
+     * block and still return the 3-elements array.
+     */
+    public final Block[] getThreeGenParentsByHashWithInfo(byte[] hash) {
+        if (hash == null) {
+            return null;
+        }
+
+        lock.lock();
+
+        try {
+            Block block = blocks.get(hash);
+            if (block == null) {
+                return null;
+            } else {
+                Block[] blockFamily = new Block[] { null, null, null};
+                BlockInfo blockInfo = getBlockInfoForHash(hash, block.getNumber());
+                if (blockInfo != null) {
+                    if (blockInfo.isMainChain()) {
+                        block.setMainChain();
+                    }
+
+                    block.setTotalDifficulty(blockInfo.getTotalDifficulty());
+                }
+
+                blockFamily[0] = block;
+
+                Block parent = blocks.get(block.getParentHash());
+                if (parent == null) {
+                    return blockFamily;
+                } else {
+                    blockInfo = getBlockInfoForHash(parent.getHash(), parent.getNumber());
+                    if (blockInfo != null) {
+                        if (blockInfo.isMainChain()) {
+                            parent.setMainChain();
+                        }
+
+                        parent.setTotalDifficulty(blockInfo.getTotalDifficulty());
+                    }
+
+                    blockFamily[1] = parent;
+                }
+
+                Block grandParent = blocks.get(parent.getParentHash());
+                if (grandParent == null) {
+                    return blockFamily;
+                } else {
+                    blockInfo = getBlockInfoForHash(grandParent.getHash(), grandParent.getNumber());
+                    if (blockInfo != null) {
+                        if (blockInfo.isMainChain()) {
+                            grandParent.setMainChain();
+                        }
+
+                        grandParent.setTotalDifficulty(blockInfo.getTotalDifficulty());
+                    }
+
+                    blockFamily[2] = grandParent;
+                }
+
+                return blockFamily;
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Retrieve two generation blocks with unity protocol info with one lock.
+     *
+     * @param hash given hash of the block
+     * @return the 2 generation block data have matched hash with unity protocol info. Block[0] is
+     *     the parent block, Block[1] is the grandParent block. The return might only contain the
+     *     parent block and still return the 2-elements array.
+     */
+    public final Block[] getTwoGenParentsByHashWithInfo(byte[] hash) {
+        if (hash == null) {
+            return null;
+        }
+
+        lock.lock();
+
+        try {
+            Block block = blocks.get(hash);
+            if (block == null) {
+                return null;
+            } else {
+                Block[] blockFamily = new Block[] { null, null};
+                BlockInfo blockInfo = getBlockInfoForHash(hash, block.getNumber());
+                if (blockInfo != null) {
+                    if (blockInfo.isMainChain()) {
+                        block.setMainChain();
+                    }
+
+                    block.setTotalDifficulty(blockInfo.getTotalDifficulty());
+                }
+
+                blockFamily[0] = block;
+
+                Block parent = blocks.get(block.getParentHash());
+                if (parent == null) {
+                    return blockFamily;
+                } else {
+                    blockInfo = getBlockInfoForHash(parent.getHash(), parent.getNumber());
+                    if (blockInfo != null) {
+                        if (blockInfo.isMainChain()) {
+                            parent.setMainChain();
+                        }
+
+                        parent.setTotalDifficulty(blockInfo.getTotalDifficulty());
+                    }
+
+                    blockFamily[1] = parent;
+                }
+
+                return blockFamily;
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
     public static class BlockInfo {
 
         /**
