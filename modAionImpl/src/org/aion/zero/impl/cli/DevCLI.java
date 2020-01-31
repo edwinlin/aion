@@ -5,6 +5,7 @@ import java.util.Optional;
 import org.aion.types.AionAddress;
 import org.aion.util.bytes.ByteUtil;
 import org.aion.zero.impl.blockchain.AionBlockchainImpl;
+import org.aion.zero.impl.config.CfgAion;
 import org.aion.zero.impl.db.DBUtils;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -40,6 +41,8 @@ public class DevCLI {
 
     public static Cli.ReturnType fullSync() {
         AionBlockchainImpl.fullSyncCheck = true;
+        // Disable the internal miner from here due to the edit mode cannot combine with the dev node.
+        CfgAion.inst().getConsensus().setMining(false);
         System.out.println("Shutdown hook set to fully sync.");
         return Cli.ReturnType.RUN;
     }

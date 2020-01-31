@@ -207,9 +207,10 @@ public class AionHub {
             p2pMgr.run();
         }
 
-        this.pow = new AionPoW();
-
-        this.pow.init(blockchain, mempool, eventMgr, syncMgr);
+        if (!AionBlockchainImpl.fullSyncCheck) {
+            this.pow = new AionPoW();
+            this.pow.init(blockchain, mempool, eventMgr, syncMgr);
+        }
 
         blockTemplateLock = new ReentrantLock();
 
@@ -534,7 +535,9 @@ public class AionHub {
         }
 
         genLOG.info("shutting down consensus...");
-        pow.shutdown();
+        if (pow != null) {
+            pow.shutdown();
+        }
         genLOG.info("shutdown consensus... Done!");
 
         if (blockchain.getRepository() != null) {
