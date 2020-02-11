@@ -11,6 +11,8 @@ pipeline {
         PATH = '/home/aion/.cargo/bin:/home/aion/bin:/home/aion/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/usr/lib/jvm/java-11-openjdk-amd64/bin'
         LIBRARY_PATH = '/usr/lib/jvm/java-11-openjdk-amd64/lib/server'
 	
+        P2P_PORT = sh "shuf -i 30304-65000 -n 1"
+
 	GIT_TAG = sh(returnStdout: true, script:
 	'''\
      	#!/bin/bash -e
@@ -23,7 +25,7 @@ pipeline {
 	'''.stripIndent()).trim()
     }
 
-    triggers { cron('50 21 * * *') }
+    triggers { cron('H 17 * * *') }
 
     stages {
         stage('Build') {
@@ -36,17 +38,17 @@ pipeline {
             }
         }
         
-        stage('Archive build output') {
-            when {
-                expression { 
-                    GIT_BRANCH == 'master' || GIT_BRANCH == 'sync-test' || GIT_TAG == 'tag'
-                }
-            }
+//        stage('Archive build output') {
+//            when {
+//                expression { 
+//                    GIT_BRANCH == 'master' || GIT_BRANCH == 'sync-test' || GIT_TAG == 'tag'
+//                }
+//            }
 
-            steps {                
-                archiveArtifacts artifacts: 'pack/oan-v*.tar.bz2'
-            }
-        }
+//            steps {                
+//                archiveArtifacts artifacts: 'pack/oan-v*.tar.bz2'
+//            }
+//        }
        
         stage('Full test') {
             when {
@@ -84,7 +86,7 @@ pipeline {
                 // only run if:
                 // - this branch is in a PR (env.CHANGE_ID not null), or
                 // - this branch is master
-                expression { env.CHANGE_ID || GIT_BRANCH == 'master' || GIT_TAG == 'tag'}
+                expression { env.CHANGE_ID || GIT_BRANCH == 'master' || GIT_BRANCH == 'sync-test' || GIT_TAG == 'tag'}
             }
             steps {
                 timeout(20) {
@@ -113,7 +115,7 @@ pipeline {
                     dir('pack') {
                         sh('tar xvf oan.tar.bz2')
                         echo "Start amity sync test..."
-                        sh('./oan/aion.sh -n amity dev fs')
+                        sh('./oan/aion.sh -n amity e port=P2P_PORT dev fs')
                         echo "finished amity sync test..."
                         sh('rm -rf ./oan/amity/*')
 		    }  
@@ -131,7 +133,7 @@ pipeline {
                 timeout(time: 12, unit: 'HOURS') {
                     dir('pack') {
                         echo "Start mainnet sync test..."
-                        sh('./oan/aion.sh dev fs')
+                        sh('./oan/aion.sh e port=P2P_PORT dev fs')
                         echo "finished mainnet sync test..."
                         sh('rm -rf ./oan')
                     }
@@ -147,19 +149,22 @@ pipeline {
             junit "report/**/*.xml"
             sh 'bash script/jenkins-dump-heapfiles.sh'
             cleanWs()
-    }
+        }
 
-    success {
-        slackSend channel: '#ci',
-            color: 'good',
-            message: "The pipeline ${currentBuild.fullDisplayName} completed successfully. Grab the generated builds at ${env.BUILD_URL}"
-    } 
+        success {
+            steps {
+                archiveArtifacts artifacts: 'pack/oan-v*.tar.bz2'
+            }
+
+            slackSend channel: '#ci',
+                color: 'good',
+                message: "The pipeline ${currentBuild.fullDisplayName} completed successfully. Grab the generated builds at ${env.BUILD_URL}"
+        } 
 
         failure {
             slackSend channel: '#ci',
                     color: 'danger', 
                     message: "The pipeline ${currentBuild.fullDisplayName} failed at ${env.BUILD_URL}"
         }
-
     }
 }
